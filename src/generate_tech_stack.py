@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """
-generate_tech_stack.py
+Tech Stack Visualizer — Gradient/Neon Theme (Option 2)
+FINAL VERSION WITH FIXES FOR USERNAMES LIKE "Varma-N"
 
-Tech Stack Visualizer — Neon/Gradient Theme (Option 2)
-Generates 3 SVG cards (500px width):
+Generates 3 SVG cards:
+ - assets/card_languages_overall.svg
+ - assets/card_languages_top5.svg
+ - assets/card_github_stats.svg
 
-1. card_languages_overall.svg  
-2. card_languages_top5.svg  
-3. card_github_stats.svg  
-
-Reads:
- - USERNAME from environment or CLI
- - TOKEN from environment or CLI (PAT recommended)
-
+Reads USERNAME and TOKEN from:
+ - environment variables (GitHub Actions)
+ - or CLI args
 """
 
 from __future__ import annotations
@@ -82,30 +80,33 @@ def write(path, content):
 def get_headers(token):
     h = {
         "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "TechStackVisualizer/1.0"
+        "User-Agent": "TechStackVisualizer/Final"
     }
     if token:
         h["Authorization"] = f"token {token}"
     return h
 
-# ------------------- API CALLS -------------------
+# ------------------- FETCH REPOS -------------------
 
 def fetch_all_repos(username, token, include_forks=False):
     repos = []
     page = 1
+
     session = requests.Session()
     session.headers.update(get_headers(token))
 
     while True:
         url = f"{GITHUB_API}/users/{username}/repos"
         params = {"per_page": 100, "page": page, "type": "owner", "sort": "updated"}
-        r = session.get(url, params=params, timeout=25)
+
+        r = session.get(url, params=params)
         
         if r.status_code == 404:
             raise SystemExit(f"User '{username}' not found.")
         
         r.raise_for_status()
         data = r.json()
+
         if not data:
             break
 
@@ -120,18 +121,18 @@ def fetch_all_repos(username, token, include_forks=False):
 
     return repos
 
+# ------------------- LANGUAGE AGGREGATION -------------------
 
 def fetch_languages(repo_full, token, session):
     url = f"{GITHUB_API}/repos/{repo_full}/languages"
-    r = session.get(url, timeout=20)
+    r = session.get(url)
     r.raise_for_status()
     return r.json() or {}
 
-
 def aggregate_languages(repos, token):
+    totals = defaultdict(int)
     session = requests.Session()
     session.headers.update(get_headers(token))
-    totals = defaultdict(int)
 
     for repo in repos:
         try:
@@ -144,10 +145,9 @@ def aggregate_languages(repos, token):
 
     return OrderedDict(sorted(totals.items(), key=lambda x: x[1], reverse=True))
 
-
 def compute_percentages(lang_bytes, threshold=1.0):
     total = sum(lang_bytes.values())
-    if not total:
+    if total == 0:
         return OrderedDict()
 
     result = []
@@ -172,19 +172,24 @@ def compute_percentages(lang_bytes, threshold=1.0):
 def total_stars(repos):
     return sum(r.get("stargazers_count", 0) for r in repos)
 
-
-def search_count(q, token):
+def safe_search(query, token):
+    """Handles search queries safely (with quoted username)."""
     url = f"{GITHUB_API}/search/issues"
-    params = {"q": q, "per_page": 1}
-    r = requests.get(url, params=params, headers=get_headers(token))
-    r.raise_for_status()
-    return int(r.json().get("total_count", 0))
+    params = {"q": query, "per_page": 1}
 
+    r = requests.get(url, params=params, headers=get_headers(token))
+    if r.status_code == 422:
+        print("⚠️ Search query failed (422). Returning 0.")
+        return 0
+
+    r.raise_for_status()
+    return r.json().get("total_count", 0)
 
 def prs_and_contributions(username, token):
-    q = f"type:pr+author:{username}"
-    url = f"{GITHUB_API}/search/issues"
+    """Quoted username avoids 422 errors."""
+    query = f'type:pr author:"{username}"'
 
+    url = f"{GITHUB_API}/search/issues"
     session = requests.Session()
     session.headers.update(get_headers(token))
 
@@ -194,8 +199,13 @@ def prs_and_contributions(username, token):
     total_prs = 0
 
     while True:
-        params = {"q": q, "page": page, "per_page": per_page}
+        params = {"q": query, "page": page, "per_page": per_page}
         r = session.get(url, params=params)
+
+        if r.status_code == 422:
+            print("⚠️ PR Search 422. Returning minimal PR results.")
+            return 0, 0
+
         r.raise_for_status()
         data = r.json()
 
@@ -214,19 +224,19 @@ def prs_and_contributions(username, token):
 
     return total_prs, len(repo_set)
 
-
 def total_commits(username, repos, token):
-    """Efficient commit count (approx using ?author=username & Link header)."""
+    """Approx commit count via ?author=username."""
     session = requests.Session()
     session.headers.update(get_headers(token))
 
-    count = 0
+    total = 0
+
     for repo in repos:
         url = f"{GITHUB_API}/repos/{repo['full_name']}/commits"
         params = {"author": username, "per_page": 1}
-        r = session.get(url, params=params)
 
-        if r.status_code not in (200, 201):
+        r = session.get(url, params=params)
+        if r.status_code != 200:
             continue
 
         if "Link" in r.headers:
@@ -234,37 +244,39 @@ def total_commits(username, repos, token):
             import re
             m = re.search(r'page=(\d+)>; rel="last"', link)
             if m:
-                count += int(m.group(1))
+                total += int(m.group(1))
             else:
-                count += len(r.json())
+                total += len(r.json())
         else:
-            count += len(r.json())
+            total += len(r.json())
 
-    return count
+    return total
 
-# ------------------- SVG: CARD 1 -------------------
+# ------------------- SVG CARD GENERATORS -------------------
 
+### CARD 1 — OVERALL LANGUAGES
 def card_languages_overall(percentages, out_path, username):
     height = 150
 
     svg = [f"""
 <svg width="{SVG_WIDTH}" height="{height}" xmlns="http://www.w3.org/2000/svg">
-<defs>{gradient("grad1", ACCENT_START, ACCENT_END)}</defs>
+<defs>{gradient("g1", ACCENT_START, ACCENT_END)}</defs>
 <rect width="{SVG_WIDTH}" height="{height}" rx="12" fill="{CARD_BG}"/>
-<text x="20" y="32" fill="{TITLE_COLOR}" font-size="18" font-weight="700"
-      font-family="Segoe UI,Roboto,Helvetica,Arial">Most Used Languages</text>
+<text x="20" y="32" fill="{TITLE_COLOR}" font-size="18"
+      font-weight="700" font-family="Segoe UI,Roboto,Helvetica,Arial">
+    Most Used Languages
+</text>
 """]
 
-    # big bar
+    # main bar
     x = 20
-    y = 50
+    y = 48
     bar_h = 14
     inner_w = SVG_WIDTH - 40
 
     svg.append(f'<rect x="{x}" y="{y}" width="{inner_w}" height="{bar_h}" rx="8" fill="#0b1220"/>')
 
     cur_x = x
-    langs = list(percentages.keys())
 
     for i, (lang, (b, pct)) in enumerate(percentages.items()):
         w = max(1, (pct / 100) * inner_w)
@@ -273,29 +285,22 @@ def card_languages_overall(percentages, out_path, username):
         cur_x += w
 
     # Legend
-    lx = 22
     ly = 90
-    gap_y = 22
 
     for i, (lang, (b, pct)) in enumerate(percentages.items()):
-        dy = ly + i * gap_y
+        dy = ly + i * 22
         color = DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
 
-        svg.append(f'<circle cx="{lx}" cy="{dy}" r="6" fill="{color}"/>')
-        svg.append(f'<text x="{lx+18}" y="{dy+5}" fill="white" font-size="13" '
+        svg.append(f'<circle cx="26" cy="{dy}" r="6" fill="{color}"/>')
+        svg.append(f'<text x="44" y="{dy+4}" fill="white" font-size="13" '
                    f'font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(lang)}</text>')
-        svg.append(f'<text x="{lx+140}" y="{dy+5}" fill="{TEXT_MUTED}" font-size="12" '
+        svg.append(f'<text x="150" y="{dy+4}" fill="{TEXT_MUTED}" font-size="12" '
                    f'font-family="Segoe UI,Roboto,Helvetica,Arial">{pct:.2f}%</text>')
-
-    # footer username
-    svg.append(f'<text x="{SVG_WIDTH-20}" y="{height-10}" fill="{TEXT_MUTED}" text-anchor="end" '
-               f'font-size="11" font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(username)}</text>')
 
     svg.append("</svg>")
     write(out_path, "\n".join(svg))
 
-# ------------------- SVG: CARD 2 -------------------
-
+### CARD 2 — TOP 5 LANGUAGES
 def card_languages_top5(percentages, out_path, username):
     top = list(percentages.items())[:5]
     rows = len(top)
@@ -326,55 +331,50 @@ def card_languages_top5(percentages, out_path, username):
         svg.append(f'<text x="{bar_x+bar_w+10}" y="{y+10}" fill="#bfe6ff" font-size="12" '
                    f'font-family="Segoe UI,Roboto,Helvetica,Arial">{pct:.2f}%</text>')
 
-    svg.append(f'<text x="{SVG_WIDTH-20}" y="{height-10}" fill="{TEXT_MUTED}" text-anchor="end" '
-               f'font-size="11" font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(username)}</text>')
-
     svg.append("</svg>")
     write(out_path, "\n".join(svg))
 
-# ------------------- SVG: CARD 3 -------------------
-
+### CARD 3 — GITHUB STATS
 def card_github_stats(stats, out_path, username):
     height = 210
 
     svg = [f"""
 <svg width="{SVG_WIDTH}" height="{height}" xmlns="http://www.w3.org/2000/svg">
-<defs>{gradient("grad3", ACCENT_START, ACCENT_END)}</defs>
+<defs>{gradient("g3", ACCENT_START, ACCENT_END)}</defs>
 <rect width="{SVG_WIDTH}" height="{height}" rx="12" fill="{CARD_BG}"/>
 <text x="20" y="32" fill="{TITLE_COLOR}" font-size="18" font-weight="700"
       font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(username)}'s GitHub Stats</text>
 """]
 
-    # Stats left side
-    stats_list = [
+    # Left stats list
+    stats_items = [
         ("#FFD166", "Total Stars:", stats["stars"]),
         ("#60A5FA", "Total Commits:", stats["commits"]),
         ("#F97316", "Total PRs:", stats["prs"]),
         ("#FB7185", "Total Issues:", stats["issues"]),
-        ("#C084FC", "Contributed to:", stats["contributed"])
+        ("#C084FC", "Contributed to:", stats["contributed"]),
     ]
 
     y0 = 60
-    for i, (color, label, value) in enumerate(stats_list):
-        y = y0 + i * 26
+    for i, (color, text, value) in enumerate(stats_items):
+        y = y0 + i * 28
         svg.append(f'<circle cx="30" cy="{y-4}" r="7" fill="{color}"/>')
-        svg.append(f'<text x="48" y="{y}" fill="white" font-size="13" '
-                   f'font-family="Segoe UI,Roboto,Helvetica,Arial">{label}</text>')
-        svg.append(f'<text x="210" y="{y}" fill="{TEXT_MUTED}" font-size="13" '
+        svg.append(f'<text x="50" y="{y}" fill="white" font-size="13" '
+                   f'font-family="Segoe UI,Roboto,Helvetica,Arial">{text}</text>')
+        svg.append(f'<text x="220" y="{y}" fill="{TEXT_MUTED}" font-size="13" '
                    f'font-family="Segoe UI,Roboto,Helvetica,Arial">{value}</text>')
 
-    # Circle grade (right side)
+    # Circle grade on right
     cx = SVG_WIDTH - 90
     cy = 90
     r = 42
-    stroke_w = 8
+    stroke = 8
 
-    # Compute grade
     score = (
-        min(stats["stars"], 300)*0.2 +
-        min(stats["commits"], 2000)*0.02 +
-        min(stats["prs"], 200)*0.3 +
-        min(stats["issues"], 200)*0.15
+        min(stats["stars"], 300) * 0.2 +
+        min(stats["commits"], 2000) * 0.02 +
+        min(stats["prs"], 200) * 0.3 +
+        min(stats["issues"], 200) * 0.15
     )
     score = max(0, min(100, score))
 
@@ -384,17 +384,17 @@ def card_github_stats(stats, out_path, username):
     elif score >= 40: grade = "C"
     else: grade = "D"
 
-    circumference = 2*math.pi*r
-    dash = circumference * (score/100)
+    circumference = 2 * math.pi * r
+    dash = circumference * (score / 100)
     gap = circumference - dash
 
-    svg.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" stroke="#0b1220" '
-               f'stroke-width="{stroke_w}" fill="none"/>')
+    svg.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" stroke="#0b1220" stroke-width="{stroke}" fill="none"/>')
 
-    svg.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" stroke="url(#grad3)" '
-               f'stroke-width="{stroke_w}" fill="none" stroke-linecap="round" '
-               f'transform="rotate(-90 {cx} {cy})" '
-               f'stroke-dasharray="{dash} {gap}"/>')
+    svg.append(
+        f'<circle cx="{cx}" cy="{cy}" r="{r}" stroke="url(#g3)" stroke-width="{stroke}" '
+        f'stroke-linecap="round" fill="none" transform="rotate(-90 {cx} {cy})" '
+        f'stroke-dasharray="{dash} {gap}"/>'
+    )
 
     svg.append(f'<text x="{cx}" y="{cy+6}" text-anchor="middle" fill="white" '
                f'font-size="20" font-weight="700" '
@@ -403,24 +403,16 @@ def card_github_stats(stats, out_path, username):
     svg.append(f'<text x="{cx}" y="{cy+26}" text-anchor="middle" fill="{TEXT_MUTED}" '
                f'font-size="11" font-family="Segoe UI,Roboto,Helvetica,Arial">{int(score)}</text>')
 
-    # Footer
-    svg.append(f'<text x="{SVG_WIDTH-20}" y="{height-12}" fill="{TEXT_MUTED}" '
-               f'text-anchor="end" font-size="11" font-family="Segoe UI,Roboto,Helvetica,Arial">'
-               f'Updated {datetime.utcnow().strftime("%Y-%m-%d")}</text>')
-
     svg.append("</svg>")
-
     write(out_path, "\n".join(svg))
-
 
 # ------------------- MAIN -------------------
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--username", "-u", help="GitHub username")
-    p.add_argument("--token", "-t", help="GitHub token")
+    p.add_argument("--username")
+    p.add_argument("--token")
     return p.parse_args()
-
 
 def main():
     args = parse_args()
@@ -429,43 +421,39 @@ def main():
     token = os.environ.get("TOKEN") or args.token
 
     if not username:
-        raise SystemExit("ERROR: USERNAME is required (env USERNAME or --username).")
+        raise SystemExit("ERROR: USERNAME not provided.")
 
-    print(f"🔧 Generating cards for user: {username}")
+    print(f"🚀 Generating tech stack cards for: {username}")
 
-    # Fetch repos
     repos = fetch_all_repos(username, token)
-    print(f"Fetched {len(repos)} repos")
+    print(f"✔ Fetched {len(repos)} repositories")
 
-    # Language stats
+    # Compute languages
     lang_bytes = aggregate_languages(repos, token)
     percentages = compute_percentages(lang_bytes, threshold=1.0)
 
-    # GitHub Stats
+    # Compute stats
     stars = total_stars(repos)
     prs, contributed = prs_and_contributions(username, token)
     commits = total_commits(username, repos, token)
-    issues = search_count(f"type:issue+author:{username}", token)
+    issues = safe_search(f'type:issue author:"{username}"', token)
 
     stats = {
         "stars": stars,
         "commits": commits,
         "prs": prs,
         "issues": issues,
-        "contributed": contributed,
+        "contributed": contributed
     }
 
-    # Output files
-    outdir = "assets"
-    os.makedirs(outdir, exist_ok=True)
+    out = "assets"
+    os.makedirs(out, exist_ok=True)
 
-    card_languages_overall(percentages, f"{outdir}/card_languages_overall.svg", username)
-    card_languages_top5(percentages, f"{outdir}/card_languages_top5.svg", username)
-    card_github_stats(stats, f"{outdir}/card_github_stats.svg", username)
+    card_languages_overall(percentages, f"{out}/card_languages_overall.svg", username)
+    card_languages_top5(percentages, f"{out}/card_languages_top5.svg", username)
+    card_github_stats(stats, f"{out}/card_github_stats.svg", username)
 
-    print("🎉 SVG cards generated successfully in /assets")
-
+    print("🎉 Done! All cards generated successfully.")
 
 if __name__ == "__main__":
     main()
-
