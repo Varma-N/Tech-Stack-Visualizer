@@ -170,7 +170,7 @@ def count_commits_in_year(repos: List[dict], username: str, token: str | None):
     We estimate commit counts using ?since + parsing Link header.
     Applies fallback when token invalid.
     """
-    year = datetime.utcnow().year
+    year = min(datetime.utcnow().year, 2024)
     since_iso = f"{year}-01-01T00:00:00Z"
     total = 0
 
@@ -379,7 +379,7 @@ def main():
         render_languages_list_card(username, items, f"{OUTPUT_DIR}/{username}_languages_list_card.svg")
 
     # 3. GitHub stats (basic)
-    year = datetime.utcnow().year
+    year = min(datetime.utcnow().year, 2024)
     stars = count_stars(repos)
     commits = count_commits_in_year(repos, username, token)
     prs = count_prs(username, year, token)
