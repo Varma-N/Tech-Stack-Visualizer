@@ -8,7 +8,7 @@ and export them to assets/ as PNG or SVG.
 
 Usage (CLI):
     python src/generate_tech_stack.py --username NANDI_MADAN_GOPAL_VARMA
-    or set GITHUB_USERNAME / GITHUB_TOKEN env vars
+    or set USERNAME / TOKEN env vars
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def github_get(url: str, token: str | None = None, params=None):
         headers["Authorization"] = f"token {token}"
     resp = requests.get(url, headers=headers, params=params)
     if resp.status_code == 401:
-        raise SystemExit("Unauthorized: check your GITHUB_TOKEN.")
+        raise SystemExit("Unauthorized: check your TOKEN.")
     resp.raise_for_status()
     return resp.json()
 
@@ -292,12 +292,12 @@ def main():
     # load config file
     config = load_config_file(args.config)
     # precedence: CLI -> env -> config file -> exit if username missing
-    username = args.username or os.environ.get("GITHUB_USERNAME") or config.get("github_username")
-    token = args.token or os.environ.get("GITHUB_TOKEN") or config.get("github_token")
+    username = args.username or os.environ.get("USERNAME") or config.get("username")
+    token = args.token or os.environ.get("TOKEN") or config.get("token")
     include_private = args.include_private or config.get("include_private", False)
 
     if not username:
-        print("Error: GitHub username must be provided via --username, GITHUB_USERNAME env, or config file.")
+        print("Error: GitHub username must be provided via --username, USERNAME env, or config file.")
         sys.exit(1)
 
     print(f"Fetching repos for user: {username} ...")
