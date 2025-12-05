@@ -2,22 +2,21 @@ name: Generate Tech Stack Assets
 
 on:
   schedule:
-    # daily at 02:00 UTC (change as needed)
-    - cron: '0 2 * * *'
+    - cron: '0 2 * * *'   # daily at 02:00 UTC
   workflow_dispatch:
 
 permissions:
-  contents: write   # allows committing changes using GITHUB_TOKEN
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: true
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -31,20 +30,22 @@ jobs:
 
       - name: Run generator
         env:
-          USERNAME: ${{ secrets.USERNAME }}   # optional: set in repo secrets
-          TOKEN: ${{ secrets.TOKEN }}         # optional: for private repos / higher rate limits
+          USERNAME: ${{ secrets.USERNAME }}
+          TOKEN: ${{ secrets.TOKEN }}
         run: |
-          python src/generate_tech_stack.py --config config_example.json || true
+          python src/generate_tech_stack.py
 
       - name: Commit and push assets
-        # If the script didn't commit already, commit changes now.
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add assets || true
+
           if ! git diff --cached --quiet; then
             git commit -m "chore: update tech stack assets [skip ci]" || true
-            git push origin HEAD
+            git push
           else
             echo "No changes to commit"
           fi
+
