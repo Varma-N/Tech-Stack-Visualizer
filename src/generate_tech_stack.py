@@ -2,100 +2,89 @@
 """
 generate_tech_stack.py
 
-Fetch GitHub repositories for a user, aggregate language statistics,
-produce two visualizations (vertical donut chart + tech stack card),
-and export them to assets/ as PNG or SVG.
+Generates three SVG README cards (Top-5 languages, GitHub basic stats, All languages list)
+and writes them to assets/<USERNAME>_*.svg
 
-Usage (CLI):
-    python src/generate_tech_stack.py --username NANDI_MADAN_GOPAL_VARMA
-    or set USERNAME / TOKEN env vars
+Usage:
+  - Provide secrets in GitHub Actions as:
+      USERNAME -> your GitHub username
+      TOKEN    -> optional Personal Access Token (recommended for higher rate limits)
+  - Or run locally:
+      export USERNAME=yourname
+      export TOKEN=ghp_xxx   # optional
+      python src/generate_tech_stack.py
+
+Notes:
+  - This script focuses on public repos when no token is provided.
+  - It uses the GitHub REST API (v3). Rate-limits may apply if you do many runs without a token.
 """
-
 from __future__ import annotations
 import os
 import sys
-import argparse
-import json
 import math
-import textwrap
-from typing import Dict, List, Tuple
+import time
 import requests
-import matplotlib.pyplot as plt
-import numpy as np
+from datetime import datetime
+from typing import Dict, List, Tuple
 
-# ---------- Configuration defaults ----------
-DEFAULT_OUTPUT_DIR = "assets"
-DEFAULT_IMAGE_FORMAT = "png"  # png or svg
-DEFAULT_THEME = "light"  # or "dark"
-DEFAULT_OTHER_THRESHOLD_PCT = 1.0  # languages <= this percent will be grouped into "Other"
-GITHUB_API = "https://api.github.com"
+# ---------- Config ----------
+API_BASE = "https://api.github.com"
+OUTPUT_DIR = "assets"
+CARD_WIDTH = 500  # px (locked as requested)
+FONT_FAMILY = '"Segoe UI", "Helvetica Neue", Arial, sans-serif'
+DARK_BG = "#0d1117"
+TITLE_COLOR = "#539bf5"
+TEXT_COLOR = "#e6edf3"
+TRACK_COLOR = "#30363d"
+PALETTE = ["#6EE7B7", "#FDE68A", "#A78BFA", "#FCA5A5", "#60A5FA", "#F59E0B", "#34D399", "#F472B6"]
 
-# ---------- Helpers: HTTP & GitHub ----------
-def github_get(url: str, token: str | None = None, params=None):
-    headers = {"Accept": "application/vnd.github.v3+json"}
+# ---------- Helpers: HTTP ----------
+def gh_get(path: str, token: str | None = None, params: dict | None = None, accept: str | None = None):
+    url = f"{API_BASE}{path}"
+    headers = {"Accept": accept or "application/vnd.github.v3+json"}
     if token:
         headers["Authorization"] = f"token {token}"
-    resp = requests.get(url, headers=headers, params=params)
-    if resp.status_code == 401:
-        raise SystemExit("Unauthorized: check your TOKEN.")
+    resp = requests.get(url, headers=headers, params=params or {})
+    if resp.status_code == 404:
+        return None
     resp.raise_for_status()
-    return resp.json()
+    return resp
 
-def fetch_all_repos(username: str, token: str | None, include_private: bool = False) -> List[Dict]:
-    """Fetch public repos for username. If token and include_private True, fetch private as well."""
+# ---------- Fetching repos & languages ----------
+def fetch_all_repos(username: str, token: str | None) -> List[dict]:
     repos = []
     page = 1
     per_page = 100
     while True:
-        params = {"per_page": per_page, "page": page, "type": "owner"}
-        url = f"{GITHUB_API}/users/{username}/repos"
-        data = github_get(url, token, params=params)
-        if not isinstance(data, list):
-            raise SystemExit(f"Unexpected response fetching repos: {data}")
+        params = {"per_page": per_page, "page": page, "type": "owner", "sort": "updated"}
+        resp = gh_get(f"/users/{username}/repos", token, params=params)
+        data = resp.json()
         repos.extend(data)
         if len(data) < per_page:
             break
         page += 1
-    # If token and include_private and the user is the authenticated user, their private repos can be fetched via /user/repos
-    if token and include_private:
-        # Fetch authenticated user's repos (may include private) and filter by owner login
-        page = 1
-        more = []
-        while True:
-            params = {"per_page": per_page, "page": page}
-            data = github_get(f"{GITHUB_API}/user/repos", token, params=params)
-            if not isinstance(data, list):
-                break
-            more.extend(data)
-            if len(data) < per_page:
-                break
-            page += 1
-        # filter repos owned by username and not already present (avoid duplication)
-        existing_names = {r["name"] for r in repos}
-        for r in more:
-            if r.get("owner", {}).get("login") == username and r["name"] not in existing_names:
-                repos.append(r)
     return repos
 
 def fetch_repo_languages(owner: str, repo: str, token: str | None) -> Dict[str, int]:
-    url = f"{GITHUB_API}/repos/{owner}/{repo}/languages"
-    return github_get(url, token)
+    resp = gh_get(f"/repos/{owner}/{repo}/languages", token)
+    return resp.json() if resp is not None else {}
 
-# ---------- Aggregation ----------
-def aggregate_languages(repos: List[Dict], token: str | None) -> Dict[str, int]:
+# ---------- Stats computations ----------
+def aggregate_languages(repos: List[dict], token: str | None) -> Dict[str, int]:
     totals: Dict[str, int] = {}
     for r in repos:
+        owner = r["owner"]["login"]
+        name = r["name"]
         try:
-            langs = fetch_repo_languages(r["owner"]["login"], r["name"], token)
-        except requests.HTTPError as e:
-            print(f"Warning: failed to fetch languages for {r['name']}: {e}", file=sys.stderr)
+            langs = fetch_repo_languages(owner, name, token)
+        except Exception as e:
+            print(f"Warning: failed to fetch languages for {name}: {e}", file=sys.stderr)
             continue
-        for lang, bytes_count in langs.items():
-            totals[lang] = totals.get(lang, 0) + bytes_count
+        for lang, b in langs.items():
+            totals[lang] = totals.get(lang, 0) + b
     return totals
 
 def compute_percentages(totals: Dict[str, int]) -> List[Tuple[str, float, int]]:
-    """Return list of (language, pct, bytes) sorted descending by bytes."""
     total_bytes = sum(totals.values())
     if total_bytes == 0:
         return []
@@ -103,233 +92,279 @@ def compute_percentages(totals: Dict[str, int]) -> List[Tuple[str, float, int]]:
     items.sort(key=lambda x: x[2], reverse=True)
     return items
 
-# ---------- Visualization utilities ----------
-def get_colors(n: int, theme: str = "light"):
-    cmap = plt.get_cmap("tab20")
-    # sample the colormap evenly
-    colors = [cmap(i % 20) for i in range(n)]
-    if theme == "dark":
-        # slightly increase alpha for dark theme
-        colors = [(r, g, b, 0.95) for (r, g, b, a) in colors]
-    return colors
+def get_top_n(items: List[Tuple[str, float, int]], n: int) -> List[Tuple[str, float, int]]:
+    return items[:n]
 
-def prepare_data_for_plot(items: List[Tuple[str, float, int]], other_threshold_pct: float):
-    """Group small languages into 'Other' if below threshold percent."""
-    if not items:
-        return items
-    main = []
-    other_sum = 0
-    for lang, pct, bytes_ in items:
-        if pct <= other_threshold_pct:
-            other_sum += bytes_
-        else:
-            main.append((lang, pct, bytes_))
-    if other_sum > 0:
-        # recompute percentage for other (based on bytes)
-        all_bytes = sum(bytes_ for _, _, bytes_ in items)
-        other_pct = (other_sum / all_bytes) * 100.0
-        main.append(("Other", other_pct, other_sum))
-        main.sort(key=lambda x: x[2], reverse=True)
-    return main
+# ---------- GitHub basic stats ----------
+def total_stars(repos: List[dict]) -> int:
+    return sum(r.get("stargazers_count", 0) for r in repos)
 
-def draw_vertical_donut(items: List[Tuple[str, float, int]],
-                        out_path: str,
-                        fmt: str = "png",
-                        theme: str = "light",
-                        title: str | None = None):
+def count_commits_since(repos: List[dict], username: str, since_iso: str, token: str | None) -> int:
     """
-    Vertical donut chart:
-    - A tall canvas with a donut near the top and labelled stacked legend below.
+    Count commits in each repo since `since_iso` by using per_page=1 and parsing Link header.
+    Per-repo approach to sum commits authored in that repo (commits API counts all commits, not just authored by username).
+    This uses commits endpoint without author filter for simplicity (counts all commits in repo).
     """
-    if not items:
-        # create a minimal placeholder
-        fig, ax = plt.subplots(figsize=(6, 8))
-        ax.text(0.5, 0.5, "No language data", ha="center", va="center", fontsize=18)
-        ax.axis("off")
-        fig.savefig(out_path, bbox_inches="tight", dpi=150, format=fmt)
-        plt.close(fig)
-        return
+    total = 0
+    for r in repos:
+        owner = r["owner"]["login"]
+        repo = r["name"]
+        try:
+            params = {"since": since_iso, "per_page": 1}
+            resp = gh_get(f"/repos/{owner}/{repo}/commits", token, params=params)
+            if resp is None:
+                continue
+            if "Link" in resp.headers:
+                link = resp.headers["Link"]
+                # find last page number
+                # example: <https://api.github.com/.../commits?since=...&per_page=1&page=23>; rel="last", ...
+                import re
+                m = re.search(r'[&?]page=(\d+)>; rel="last"', link)
+                if m:
+                    total += int(m.group(1))
+                else:
+                    # fallback: count returned items
+                    total += len(resp.json())
+            else:
+                total += len(resp.json())
+        except Exception:
+            # ignore per-repo errors
+            continue
+    return total
 
-    labels = [f"{lang} ({pct:.1f}%)" for lang, pct, _ in items]
-    sizes = [pct for _, pct, _ in items]
-    colors = get_colors(len(items), theme)
+def search_count(query: str, token: str | None, accept_preview: bool = False) -> int:
+    headers_accept = "application/vnd.github.v3+json"
+    if accept_preview:
+        headers_accept = "application/vnd.github.cloak-preview"
+    params = {"q": query, "per_page": 1}
+    resp = gh_get("/search/issues", token, params=params, accept=headers_accept)
+    if resp is None:
+        return 0
+    data = resp.json()
+    return data.get("total_count", 0)
 
-    # Tall figure
-    fig = plt.figure(figsize=(6, 10), dpi=150)
-    if theme == "dark":
-        fig.patch.set_facecolor("#0f1720")
-    # donut axes
-    donut_ax = fig.add_axes([0.15, 0.55, 0.7, 0.35])  # x, y, width, height
-    donut_ax.pie(sizes,
-                 labels=None,
-                 startangle=90,
-                 counterclock=False,
-                 wedgeprops=dict(width=0.35, edgecolor='w'),
-                 colors=colors)
-    donut_ax.axis("equal")
-    if title:
-        donut_ax.set_title(title, fontsize=16, pad=12)
+def count_prs(username: str, year: int, token: str | None) -> int:
+    # PRs authored by username during year across all repos
+    since = f"{year}-01-01"
+    until = f"{year}-12-31"
+    q = f"type:pr+author:{username}+created:{since}..{until}"
+    return search_count(q, token)
 
-    # Legend / stacked list below — large, readable
-    legend_ax = fig.add_axes([0.08, 0.06, 0.84, 0.42])
-    legend_ax.axis("off")
+def count_issues(username: str, year: int, token: str | None) -> int:
+    since = f"{year}-01-01"
+    until = f"{year}-12-31"
+    q = f"type:issue+author:{username}+created:{since}..{until}"
+    return search_count(q, token)
 
-    # draw colored squares + text entries vertically
-    y = 0.95
-    step = 0.12 if len(items) <= 8 else 0.09
-    for i, (lang, pct, bytes_) in enumerate(items):
-        rect = plt.Rectangle((0.05, y - 0.05), 0.08, 0.08, facecolor=colors[i], transform=legend_ax.transAxes)
-        legend_ax.add_patch(rect)
-        legend_ax.text(0.16, y, f"{lang}", transform=legend_ax.transAxes, fontsize=12, va="center")
-        legend_ax.text(0.85, y, f"{pct:.1f}%", transform=legend_ax.transAxes, fontsize=12, va="center", ha="right")
-        y -= step
-        if y < 0.05:
-            break
+def count_contributed_repos(repos: List[dict], username: str, token: str | None) -> int:
+    count = 0
+    for r in repos:
+        owner = r["owner"]["login"]
+        name = r["name"]
+        try:
+            resp = gh_get(f"/repos/{owner}/{name}/contributors", token, params={"per_page": 100})
+            if resp is None:
+                continue
+            contribs = resp.json()
+            for c in contribs:
+                if c.get("login", "").lower() == username.lower():
+                    count += 1
+                    break
+        except Exception:
+            continue
+    return count
 
-    fig.savefig(out_path, bbox_inches="tight", dpi=150, format=fmt)
-    plt.close(fig)
+# ---------- Simple grading for circle badge ----------
+def build_grade(stars: int, commits: int, prs: int, issues: int, contribs: int) -> str:
+    # Heuristic score -> grade
+    score = 0.0
+    score += min(stars / 50.0, 1.0) * 40  # stars up to 50 contribute 40
+    score += min(commits / 200.0, 1.0) * 25
+    score += min(prs / 20.0, 1.0) * 15
+    score += min(contribs / 10.0, 1.0) * 15
+    # issues not directly positive; small boost
+    score += min(issues / 30.0, 1.0) * 5
+    # map to grades
+    if score >= 90:
+        return "A+"
+    if score >= 80:
+        return "A"
+    if score >= 70:
+        return "B+"
+    if score >= 60:
+        return "B"
+    if score >= 50:
+        return "C+"
+    return "C"
 
-def draw_tech_stack_card(items: List[Tuple[str, float, int]],
-                         out_path: str,
-                         fmt: str = "png",
-                         theme: str = "light",
-                         username: str | None = None):
-    """
-    A rectangular card showing language names and percentages in a modern style.
-    """
-    width = 1200
-    height = 400
-    dpi = 150
-    fig = plt.figure(figsize=(width / dpi, height / dpi), dpi=dpi)
-    ax = fig.add_axes([0, 0, 1, 1])
-    ax.axis("off")
-    if theme == "dark":
-        fig.patch.set_facecolor("#0d1117")
-        text_color = "#e6eef6"
-    else:
-        fig.patch.set_facecolor("#ffffff")
-        text_color = "#111827"
+# ---------- SVG generation helpers ----------
+def px(n: int) -> str:
+    return f"{n}px"
 
+def svg_text(x, y, content, size=14, weight=400, color=TEXT_COLOR, anchor="start"):
+    return f'<text x="{x}" y="{y}" font-family={FONT_FAMILY!s} font-size="{size}" font-weight="{weight}" fill="{color}" text-anchor="{anchor}">{content}</text>'
+
+def write_file(path: str, data: str):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(data)
+
+# ---------- Card 1: Top-5 languages with rounded bars ----------
+def render_top_languages_card(username: str, items: List[Tuple[str, float, int]], out_path: str):
+    # items: list of (lang, pct, bytes)
+    top = items[:5]
+    rows = len(top)
+    width = CARD_WIDTH
+    padding_x = 20
+    padding_y_top = 28
+    row_h = 34  # vertical space per row
+    title_h = 28
+    height = padding_y_top + title_h + 12 + rows * row_h + 20
+
+    bar_x = padding_x + 130  # start of bar
+    bar_w = width - bar_x - padding_x - 60  # leave space for percentage text
+    bar_h = 10
+
+    svg = []
+    svg.append(f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">')
+    svg.append(f'<rect rx="12" ry="12" width="100%" height="100%" fill="{DARK_BG}" />')
     # Title
-    title_text = f"{username or 'Tech Stack'} — Language distribution"
-    ax.text(0.05, 0.78, title_text, fontsize=22, fontweight="600", color=text_color)
+    svg.append(f'<text x="{padding_x}" y="{padding_y_top}" font-family={FONT_FAMILY!s} font-size="20" font-weight="700" fill="{TITLE_COLOR}">Most Used Languages</text>')
 
-    # small subtitle
-    ax.text(0.05, 0.72, "Generated by Tech Stack Visualizer", fontsize=10, color=text_color)
+    y0 = padding_y_top + 20
+    for i, (lang, pct, _) in enumerate(top):
+        y = y0 + 10 + i * row_h
+        # language label
+        svg.append(f'<text x="{padding_x}" y="{y}" font-family={FONT_FAMILY!s} font-size="13" font-weight="600" fill="{TEXT_COLOR}">{lang}</text>')
+        # track
+        track_x = bar_x
+        track_y = y - 10
+        svg.append(f'<rect x="{track_x}" y="{track_y}" rx="{bar_h/2}" ry="{bar_h/2}" width="{bar_w}" height="{bar_h}" fill="{TRACK_COLOR}" />')
+        # filled bar
+        pct_clamped = max(0.0, min(100.0, pct))
+        fill_w = (pct_clamped / 100.0) * bar_w
+        color = PALETTE[i % len(PALETTE)]
+        svg.append(f'<rect x="{track_x}" y="{track_y}" rx="{bar_h/2}" ry="{bar_h/2}" width="{fill_w}" height="{bar_h}" fill="{color}" />')
+        # percentage text (right)
+        pct_text = f"{pct_clamped:.2f}%"
+        svg.append(f'<text x="{track_x + bar_w + 8}" y="{y}" font-family={FONT_FAMILY!s} font-size="13" font-weight="600" fill="{TEXT_COLOR}">{pct_text}</text>')
+    svg.append("</svg>")
+    write_file(out_path, "\n".join(svg))
 
-    # compute layout for language blocks
-    max_cols = 6
-    n = len(items)
-    colors = get_colors(n, theme)
-    box_w = 0.14
-    box_h = 0.22
-    x0 = 0.05
-    y0 = 0.38
-    gap_x = 0.02
-    gap_y = 0.04
+# ---------- Card 2: GitHub Stats ----------
+def render_github_stats_card(username: str, stars: int, commits: int, prs: int, issues: int, contribs: int, out_path: str):
+    width = CARD_WIDTH
+    padding_x = 20
+    padding_y = 24
+    line_h = 34
+    title_h = 26
+    rows = 5
+    height = padding_y + title_h + 12 + rows * line_h + 20
 
-    for i, (lang, pct, bytes_) in enumerate(items):
-        col = i % max_cols
-        row = i // max_cols
-        x = x0 + col * (box_w + gap_x)
-        y = y0 - row * (box_h + gap_y)
-        # color swatch
-        sw_rect = plt.Rectangle((x, y - 0.03), 0.05, 0.06, facecolor=colors[i])
-        ax.add_patch(sw_rect)
-        # language name + pct
-        ax.text(x + 0.06, y, f"{lang}", fontsize=14, fontweight="600", color=text_color, va="top")
-        ax.text(x + 0.06, y - 0.09, f"{pct:.1f}%", fontsize=13, color="#6b7280" if theme == "light" else "#9aa6b2")
-    # footer small note
-    ax.text(0.05, 0.02, "Data aggregated from GitHub repositories", fontsize=9, color=text_color)
+    svg = []
+    svg.append(f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">')
+    svg.append(f'<rect rx="12" ry="12" width="100%" height="100%" fill="{DARK_BG}" />')
+    svg.append(f'<text x="{padding_x}" y="{padding_y}" font-family={FONT_FAMILY!s} font-size="20" font-weight="700" fill="{TITLE_COLOR}">GitHub Stats</text>')
 
-    fig.savefig(out_path, bbox_inches="tight", dpi=dpi, format=fmt)
-    plt.close(fig)
+    y0 = padding_y + 24
+    labels = [
+        ("★ Stars", str(stars)),
+        ("🔁 Commits (this year)", str(commits)),
+        ("🔀 Pull Requests", str(prs)),
+        ("🐞 Issues", str(issues)),
+        ("🧩 Contributed repos", str(contribs)),
+    ]
+    for i, (label, value) in enumerate(labels):
+        y = y0 + i * line_h
+        svg.append(f'<text x="{padding_x}" y="{y}" font-family={FONT_FAMILY!s} font-size="13" font-weight="600" fill="{TEXT_COLOR}">{label}</text>')
+        svg.append(f'<text x="{width - padding_x - 12}" y="{y}" font-family={FONT_FAMILY!s} font-size="13" font-weight="700" fill="{TEXT_COLOR}" text-anchor="end">{value}</text>')
 
-# ---------- Persist outputs ----------
-def ensure_dir(path: str):
-    os.makedirs(path, exist_ok=True)
+    # grade circle at right middle
+    grade = build_grade(stars, commits, prs, issues, contribs)
+    circ_cx = width - 70
+    circ_cy = y0 + (rows * line_h) / 2 - 8
+    svg.append(f'<circle cx="{circ_cx}" cy="{circ_cy}" r="32" stroke="#2b6cb0" stroke-width="6" fill="none" opacity="0.18" />')
+    svg.append(f'<text x="{circ_cx}" y="{circ_cy + 6}" font-family={FONT_FAMILY!s} font-size="20" font-weight="800" fill="{TITLE_COLOR}" text-anchor="middle">{grade}</text>')
 
-# ---------- Commit helper (for GitHub Actions) ----------
-def commit_and_push_assets(asset_paths: List[str], commit_message: str = "chore: update tech stack assets"):
-    """
-    If running inside GitHub Actions or a repo with git available, stage, commit, and push assets.
-    This function assumes git is already configured in the environment (or in Actions).
-    """
-    import subprocess
-    try:
-        subprocess.run(["git", "add"] + asset_paths, check=True)
-        subprocess.run(["git", "commit", "-m", commit_message], check=True)
-        subprocess.run(["git", "push"], check=True)
-    except Exception as e:
-        print("Warning: failed to commit/push assets automatically:", e)
+    svg.append("</svg>")
+    write_file(out_path, "\n".join(svg))
 
-# ---------- CLI + main ----------
-def load_config_file(path: str) -> dict:
-    if not os.path.exists(path):
-        return {}
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+# ---------- Card 3: All languages two-column list ----------
+def render_languages_list_card(username: str, items: List[Tuple[str, float, int]], out_path: str):
+    # items has all languages sorted by bytes desc
+    # two columns
+    cols = 2
+    per_col = (len(items) + cols - 1) // cols
+    width = CARD_WIDTH
+    padding_x = 20
+    padding_y_top = 28
+    title_h = 28
+    row_h = 22
+    height = padding_y_top + title_h + 12 + per_col * row_h + 22
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        prog="generate_tech_stack.py",
-        description="Generate tech stack visualizations from GitHub language stats."
-    )
-    parser.add_argument("--username", "-u", help="GitHub username (overrides config/env)")
-    parser.add_argument("--token", "-t", help="GitHub token (optional)", default=None)
-    parser.add_argument("--config", "-c", help="Path to JSON config (default: config_example.json)", default="config_example.json")
-    parser.add_argument("--output", "-o", help="Output directory for assets", default=DEFAULT_OUTPUT_DIR)
-    parser.add_argument("--format", "-f", choices=["png", "svg"], default=DEFAULT_IMAGE_FORMAT)
-    parser.add_argument("--theme", choices=["light", "dark"], default=DEFAULT_THEME)
-    parser.add_argument("--include-private", action="store_true", help="Attempt to include private repos (requires token)")
-    parser.add_argument("--no-commit", action="store_true", help="Don't attempt to git commit/push the assets (useful for local)")
-    parser.add_argument("--other-threshold", type=float, default=DEFAULT_OTHER_THRESHOLD_PCT, help="group languages <= this percent into 'Other'")
-    return parser.parse_args()
+    svg = []
+    svg.append(f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">')
+    svg.append(f'<rect rx="12" ry="12" width="100%" height="100%" fill="{DARK_BG}" />')
+    svg.append(f'<text x="{padding_x}" y="{padding_y_top}" font-family={FONT_FAMILY!s} font-size="20" font-weight="700" fill="{TITLE_COLOR}">Languages Breakdown</text>')
 
+    start_y = padding_y_top + 22
+    col_x = [padding_x, width / 2 + 10]
+    dot_r = 6
+    for idx, (lang, pct, _) in enumerate(items):
+        col = 0 if idx < per_col else 1
+        row = idx if col == 0 else idx - per_col
+        x = col_x[col]
+        y = start_y + row * row_h
+        color = PALETTE[idx % len(PALETTE)]
+        # circle
+        svg.append(f'<circle cx="{x+6}" cy="{y-6}" r="{dot_r}" fill="{color}" />')
+        # label
+        svg.append(f'<text x="{x+20}" y="{y-2}" font-family={FONT_FAMILY!s} font-size="12" font-weight="600" fill="{TEXT_COLOR}">{lang}</text>')
+        svg.append(f'<text x="{x + (width/2 - padding_x) - 6}" y="{y-2}" font-family={FONT_FAMILY!s} font-size="12" font-weight="600" fill="{TEXT_COLOR}" text-anchor="end">{pct:.2f}%</text>')
+
+    svg.append("</svg>")
+    write_file(out_path, "\n".join(svg))
+
+# ---------- Main flow ----------
 def main():
-    args = parse_args()
-
-    # load config file
-    config = load_config_file(args.config)
-    # precedence: CLI -> env -> config file -> exit if username missing
-    username = args.username or os.environ.get("USERNAME") or config.get("username")
-    token = args.token or os.environ.get("TOKEN") or config.get("token")
-    include_private = args.include_private or config.get("include_private", False)
-
+    username = os.environ.get("USERNAME") or os.environ.get("GITHUB_USERNAME")
+    token = os.environ.get("TOKEN") or os.environ.get("GITHUB_TOKEN")
     if not username:
-        print("Error: GitHub username must be provided via --username, USERNAME env, or config file.")
+        print("Error: set USERNAME environment variable (or GITHUB_USERNAME).", file=sys.stderr)
         sys.exit(1)
 
     print(f"Fetching repos for user: {username} ...")
-    repos = fetch_all_repos(username, token, include_private=include_private)
-    print(f"Found {len(repos)} repos (owned).")
+    repos = fetch_all_repos(username, token)
+    print(f"Found {len(repos)} repos.")
 
     totals = aggregate_languages(repos, token)
-    items = compute_percentages(totals)
-    items = prepare_data_for_plot(items, other_threshold_pct=args.other_threshold)
+    items = compute_percentages(totals)  # list of (lang, pct, bytes)
+    if not items:
+        print("No language data found.")
+    else:
+        # Top 5 card
+        top5 = get_top_n(items, 5)
+        top_card_path = os.path.join(OUTPUT_DIR, f"{username}_top_languages_card.svg")
+        render_top_languages_card(username, top5, top_card_path)
+        print("Wrote:", top_card_path)
 
-    ensure_dir(args.output)
+        # All languages list card
+        list_card_path = os.path.join(OUTPUT_DIR, f"{username}_languages_list_card.svg")
+        render_languages_list_card(username, items, list_card_path)
+        print("Wrote:", list_card_path)
 
-    # Filenames
-    donut_file = os.path.join(args.output, f"{username}_vertical_donut.{args.format}")
-    card_file = os.path.join(args.output, f"{username}_tech_stack_card.{args.format}")
+    # GitHub Stats
+    stars = total_stars(repos)
+    this_year = datetime.utcnow().year
+    since_iso = f"{this_year}-01-01T00:00:00Z"
+    commits = count_commits_since(repos, username, since_iso, token)
+    prs = count_prs(username, this_year, token)
+    issues = count_issues(username, this_year, token)
+    contribs = count_contributed_repos(repos, username, token)
 
-    print("Generating vertical donut:", donut_file)
-    draw_vertical_donut(items, donut_file, fmt=args.format, theme=args.theme, title=f"{username}'s Languages")
-
-    print("Generating tech stack card:", card_file)
-    draw_tech_stack_card(items, card_file, fmt=args.format, theme=args.theme, username=username)
-
-    print("Wrote assets:", donut_file, card_file)
-
-    if not args.no_commit:
-        # If inside GitHub Actions, GITHUB_ACTIONS env var exists; otherwise attempt to commit locally
-        asset_paths = [donut_file, card_file]
-        try:
-            commit_and_push_assets(asset_paths)
-            print("Committed & pushed assets (if git available and configured).")
-        except Exception as e:
-            print("Skipping commit step:", e)
+    stats_card_path = os.path.join(OUTPUT_DIR, f"{username}_github_stats_card.svg")
+    render_github_stats_card(username, stars, commits, prs, issues, contribs, stats_card_path)
+    print("Wrote:", stats_card_path)
 
 if __name__ == "__main__":
     main()
