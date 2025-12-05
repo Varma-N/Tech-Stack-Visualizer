@@ -33,12 +33,14 @@ jobs:
           USERNAME: ${{ secrets.USERNAME }}
           TOKEN: ${{ secrets.TOKEN }}
         run: |
-          python src/generate_tech_stack.py
+          python src/generate_tech_stack.py \
+            --username "$USERNAME" \
+            --token "$TOKEN"
 
       - name: Commit and push assets
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add assets || true
 
@@ -48,4 +50,3 @@ jobs:
           else
             echo "No changes to commit"
           fi
-
