@@ -256,49 +256,82 @@ def total_commits(username, repos, token):
 
 ### CARD 1 — OVERALL LANGUAGES
 def card_languages_overall(percentages, out_path, username):
+    # Custom GitHub language colors for perfect accuracy
+    GITHUB_COLORS = {
+        "Jupyter Notebook": "#DA5B0B",
+        "HTML": "#E34C26",
+        "Python": "#3572A5",
+    }
+
     height = 150
 
     svg = [f"""
 <svg width="{SVG_WIDTH}" height="{height}" xmlns="http://www.w3.org/2000/svg">
 <defs>{gradient("g1", ACCENT_START, ACCENT_END)}</defs>
 <rect width="{SVG_WIDTH}" height="{height}" rx="12" fill="{CARD_BG}"/>
+
 <text x="20" y="32" fill="{TITLE_COLOR}" font-size="18"
       font-weight="700" font-family="Segoe UI,Roboto,Helvetica,Arial">
-    Most Used Languages
+    Overall Language Breakdown
 </text>
 """]
 
-    # main bar
+    # main horizontal bar
     x = 20
     y = 48
-    bar_h = 14
+    bar_h = 16
     inner_w = SVG_WIDTH - 40
 
     svg.append(f'<rect x="{x}" y="{y}" width="{inner_w}" height="{bar_h}" rx="8" fill="#0b1220"/>')
 
     cur_x = x
 
+    # Fill the bar with segments
     for i, (lang, (b, pct)) in enumerate(percentages.items()):
         w = max(1, (pct / 100) * inner_w)
-        color = DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
+
+        color = GITHUB_COLORS.get(
+            lang, DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
+        )
+
         svg.append(f'<rect x="{cur_x}" y="{y}" width="{w}" height="{bar_h}" rx="8" fill="{color}"/>')
         cur_x += w
+
+    # Bubble stack at the end of the bar
+    bubble_x_start = x + inner_w + 6
+    bubble_spacing = 12
+
+    for i, (lang, _) in enumerate(percentages.items()):
+        color = GITHUB_COLORS.get(
+            lang, DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
+        )
+
+        svg.append(
+            f'<circle cx="{bubble_x_start + i * bubble_spacing}" '
+            f'cy="{y + bar_h/2}" r="6" fill="{color}" />'
+        )
 
     # Legend
     ly = 90
 
     for i, (lang, (b, pct)) in enumerate(percentages.items()):
-        dy = ly + i * 22
-        color = DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
+        dy = ly + i * 20  # tighter spacing
+
+        color = GITHUB_COLORS.get(
+            lang, DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
+        )
 
         svg.append(f'<circle cx="26" cy="{dy}" r="6" fill="{color}"/>')
+
         svg.append(f'<text x="44" y="{dy+4}" fill="white" font-size="13" '
                    f'font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(lang)}</text>')
-        svg.append(f'<text x="150" y="{dy+4}" fill="{TEXT_MUTED}" font-size="12" '
+
+        svg.append(f'<text x="130" y="{dy+4}" fill="{TEXT_MUTED}" font-size="12" '
                    f'font-family="Segoe UI,Roboto,Helvetica,Arial">{pct:.2f}%</text>')
 
     svg.append("</svg>")
     write(out_path, "\n".join(svg))
+
 
 ### CARD 2 — TOP 5 LANGUAGES
 def card_languages_top5(percentages, out_path, username):
@@ -310,7 +343,7 @@ def card_languages_top5(percentages, out_path, username):
 <svg width="{SVG_WIDTH}" height="{height}" xmlns="http://www.w3.org/2000/svg">
 <rect width="{SVG_WIDTH}" height="{height}" rx="12" fill="{CARD_BG}"/>
 <text x="20" y="32" fill="{TITLE_COLOR}" font-size="18" font-weight="700"
-      font-family="Segoe UI,Roboto,Helvetica,Arial">Most Used Languages</text>
+      font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(username)}'s Top 5 Languages</text>
 """]
 
     bar_x = 130
