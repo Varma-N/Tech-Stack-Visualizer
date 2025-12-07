@@ -1,37 +1,33 @@
 
-<svg width="500" height="150" xmlns="http://www.w3.org/2000/svg">
-<defs>
-    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stop-color="#f472b6"/>
-        <stop offset="100%" stop-color="#8b5cf6"/>
-    </linearGradient>
-    </defs>
-<rect width="500" height="150" rx="12" fill="#0f1724"/>
+<svg width="500" height="218" xmlns="http://www.w3.org/2000/svg">
+<rect width="500" height="218" rx="12" fill="#0f1724"/>
 
-<text x="20" y="32" fill="#7aa2ff" font-size="18"
-      font-weight="700" font-family="Segoe UI,Roboto,Helvetica,Arial">
+<!-- Title -->
+<text x="20" y="32" fill="#7aa2ff"
+      font-size="18" font-weight="700"
+      font-family="Segoe UI,Roboto,Helvetica,Arial">
     Overall Language Breakdown
 </text>
 
-<rect x="20" y="48" width="460" height="16" rx="8" fill="#0b1220"/>
-<rect x="20" y="48" width="428.99600000000004" height="16" rx="8" fill="#DA5B0B"/>
-<rect x="448.99600000000004" y="48" width="16.146" height="16" rx="8" fill="#E34C26"/>
-<rect x="465.14200000000005" y="48" width="11.822" height="16" rx="8" fill="#3572A5"/>
-<rect x="476.96400000000006" y="48" width="3.036" height="16" rx="8" fill="#6b7280"/>
-<circle cx="486" cy="56.0" r="6" fill="#DA5B0B" />
-<circle cx="498" cy="56.0" r="6" fill="#E34C26" />
-<circle cx="510" cy="56.0" r="6" fill="#3572A5" />
-<circle cx="522" cy="56.0" r="6" fill="#6b7280" />
-<circle cx="26" cy="90" r="6" fill="#DA5B0B"/>
-<text x="44" y="94" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Jupyter Notebook</text>
-<text x="130" y="94" fill="#9aa4b2" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">93.26%</text>
-<circle cx="26" cy="110" r="6" fill="#E34C26"/>
-<text x="44" y="114" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">HTML</text>
-<text x="130" y="114" fill="#9aa4b2" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">3.51%</text>
-<circle cx="26" cy="130" r="6" fill="#3572A5"/>
-<text x="44" y="134" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Python</text>
-<text x="130" y="134" fill="#9aa4b2" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">2.57%</text>
-<circle cx="26" cy="150" r="6" fill="#6b7280"/>
-<text x="44" y="154" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Other</text>
-<text x="130" y="154" fill="#9aa4b2" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">0.66%</text>
+<rect x="20" y="58" width="400" height="14" rx="7" fill="#0b1220"/>
+<rect x="20" y="58" width="372.8" height="14" rx="7" fill="#DA5B0B"/>
+<rect x="392.8" y="58" width="14.04" height="14" rx="7" fill="#E34C26"/>
+<rect x="406.84000000000003" y="58" width="10.56" height="14" rx="7" fill="#3572A5"/>
+<rect x="417.40000000000003" y="58" width="2.64" height="14" rx="7" fill="#6b7280"/>
+<circle cx="372" cy="65.0" r="6" fill="#DA5B0B" />
+<circle cx="384" cy="65.0" r="6" fill="#E34C26" />
+<circle cx="396" cy="65.0" r="6" fill="#3572A5" />
+<circle cx="408" cy="65.0" r="6" fill="#6b7280" />
+<circle cx="26" cy="100" r="6" fill="#DA5B0B"/>
+<text x="48" y="103" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Jupyter Notebook</text>
+<text x="180" y="103" fill="#9aa4b2" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">93.20%</text>
+<circle cx="26" cy="122" r="6" fill="#E34C26"/>
+<text x="48" y="125" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">HTML</text>
+<text x="180" y="125" fill="#9aa4b2" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">3.51%</text>
+<circle cx="26" cy="144" r="6" fill="#3572A5"/>
+<text x="48" y="147" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Python</text>
+<text x="180" y="147" fill="#9aa4b2" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">2.64%</text>
+<circle cx="26" cy="166" r="6" fill="#6b7280"/>
+<text x="48" y="169" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Other</text>
+<text x="180" y="169" fill="#9aa4b2" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">0.66%</text>
 </svg>

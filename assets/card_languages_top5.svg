@@ -1,23 +1,32 @@
 
-<svg width="500" height="272" xmlns="http://www.w3.org/2000/svg">
-<rect width="500" height="272" rx="12" fill="#0f1724"/>
-<text x="20" y="32" fill="#7aa2ff" font-size="18" font-weight="700"
-      font-family="Segoe UI,Roboto,Helvetica,Arial">Varma-N's Top 5 Languages</text>
+<svg width="500" height="238" xmlns="http://www.w3.org/2000/svg">
+<rect width="500" height="238" rx="12" fill="#0f1724"/>
 
-<text x="28" y="70" fill="#7ee6ff" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Jupyter Notebook</text>
-<rect x="130" y="60" width="330" height="12" rx="7" fill="#0b1220"/>
-<rect x="130" y="60" width="307.75800000000004" height="12" rx="7" fill="#ff7a7a"/>
-<text x="470" y="70" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">93.26%</text>
-<text x="28" y="104" fill="#7ee6ff" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">HTML</text>
-<rect x="130" y="94" width="330" height="12" rx="7" fill="#0b1220"/>
-<rect x="130" y="94" width="11.583" height="12" rx="7" fill="#e34c26"/>
-<text x="470" y="104" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">3.51%</text>
-<text x="28" y="138" fill="#7ee6ff" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Python</text>
-<rect x="130" y="128" width="330" height="12" rx="7" fill="#0b1220"/>
-<rect x="130" y="128" width="8.481" height="12" rx="7" fill="#3572A5"/>
-<text x="470" y="138" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">2.57%</text>
-<text x="28" y="172" fill="#7ee6ff" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Other</text>
-<rect x="130" y="162" width="330" height="12" rx="7" fill="#0b1220"/>
-<rect x="130" y="162" width="2.178" height="12" rx="7" fill="#6b7280"/>
-<text x="470" y="172" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">0.66%</text>
+<!-- Title -->
+<text x="20" y="32" fill="#7aa2ff" 
+      font-size="18" font-weight="700"
+      font-family="Segoe UI,Roboto,Helvetica,Arial">
+    Top 5 Languages
+</text>
+
+<circle cx="26" cy="64" r="5" fill="#DA5B0B" />
+<text x="50" y="68" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Jupyter Notebook</text>
+<rect x="160" y="60" width="270" height="12" rx="7" fill="#0b1220"/>
+<rect x="160" y="60" width="251.64000000000001" height="12" rx="7" fill="#DA5B0B"/>
+<text x="445" y="70" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">93.20%</text>
+<circle cx="26" cy="96" r="5" fill="#E34C26" />
+<text x="50" y="100" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">HTML</text>
+<rect x="160" y="92" width="270" height="12" rx="7" fill="#0b1220"/>
+<rect x="160" y="92" width="9.477" height="12" rx="7" fill="#E34C26"/>
+<text x="445" y="102" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">3.51%</text>
+<circle cx="26" cy="128" r="5" fill="#3572A5" />
+<text x="50" y="132" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Python</text>
+<rect x="160" y="124" width="270" height="12" rx="7" fill="#0b1220"/>
+<rect x="160" y="124" width="7.128" height="12" rx="7" fill="#3572A5"/>
+<text x="445" y="134" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">2.64%</text>
+<circle cx="26" cy="160" r="5" fill="#6b7280" />
+<text x="50" y="164" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Other</text>
+<rect x="160" y="156" width="270" height="12" rx="7" fill="#0b1220"/>
+<rect x="160" y="156" width="2" height="12" rx="7" fill="#6b7280"/>
+<text x="445" y="166" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">0.66%</text>
 </svg>
