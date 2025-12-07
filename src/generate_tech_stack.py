@@ -256,113 +256,203 @@ def total_commits(username, repos, token):
 
 ### CARD 1 — OVERALL LANGUAGES
 def card_languages_overall(percentages, out_path, username):
-    # Custom GitHub language colors for perfect accuracy
+    # GitHub accurate colors
     GITHUB_COLORS = {
         "Jupyter Notebook": "#DA5B0B",
         "HTML": "#E34C26",
         "Python": "#3572A5",
+        "Other": "#6b7280",
     }
 
-    height = 150
+    # Layout constants calibrated to match GitHub card styling
+    TITLE_Y = 32
+    BAR_Y = 58
+    BAR_HEIGHT = 14
+    CARD_PADDING = 20
+    ROW_GAP = 22
+
+    # Dynamic card height
+    height = 130 + len(percentages) * ROW_GAP
+    width = SVG_WIDTH
 
     svg = [f"""
-<svg width="{SVG_WIDTH}" height="{height}" xmlns="http://www.w3.org/2000/svg">
-<defs>{gradient("g1", ACCENT_START, ACCENT_END)}</defs>
-<rect width="{SVG_WIDTH}" height="{height}" rx="12" fill="{CARD_BG}"/>
+<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">
+<rect width="{width}" height="{height}" rx="12" fill="{CARD_BG}"/>
 
-<text x="20" y="32" fill="{TITLE_COLOR}" font-size="18"
-      font-weight="700" font-family="Segoe UI,Roboto,Helvetica,Arial">
+<!-- Title -->
+<text x="{CARD_PADDING}" y="{TITLE_Y}" fill="{TITLE_COLOR}"
+      font-size="18" font-weight="700"
+      font-family="Segoe UI,Roboto,Helvetica,Arial">
     Overall Language Breakdown
 </text>
 """]
 
-    # main horizontal bar
-    x = 20
-    y = 48
-    bar_h = 16
-    inner_w = SVG_WIDTH - 40
+    # =========================
+    # MAIN SEGMENTED BAR
+    # =========================
 
-    svg.append(f'<rect x="{x}" y="{y}" width="{inner_w}" height="{bar_h}" rx="8" fill="#0b1220"/>')
+    bar_x = CARD_PADDING
+    bar_w = width - (CARD_PADDING * 3) - 40  # leaves room for bubbles stack
 
-    cur_x = x
+    # background bar
+    svg.append(
+        f'<rect x="{bar_x}" y="{BAR_Y}" width="{bar_w}" height="{BAR_HEIGHT}" '
+        f'rx="7" fill="#0b1220"/>'
+    )
 
-    # Fill the bar with segments
+    # Create segmented bar
+    current_x = bar_x
+    bar_segments = []
+
     for i, (lang, (b, pct)) in enumerate(percentages.items()):
-        w = max(1, (pct / 100) * inner_w)
+        segment_w = max(1, (pct / 100) * bar_w)
 
         color = GITHUB_COLORS.get(
-            lang, DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
-        )
-
-        svg.append(f'<rect x="{cur_x}" y="{y}" width="{w}" height="{bar_h}" rx="8" fill="{color}"/>')
-        cur_x += w
-
-    # Bubble stack at the end of the bar
-    bubble_x_start = x + inner_w + 6
-    bubble_spacing = 12
-
-    for i, (lang, _) in enumerate(percentages.items()):
-        color = GITHUB_COLORS.get(
-            lang, DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
+            lang,
+            DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
         )
 
         svg.append(
-            f'<circle cx="{bubble_x_start + i * bubble_spacing}" '
-            f'cy="{y + bar_h/2}" r="6" fill="{color}" />'
+            f'<rect x="{current_x}" y="{BAR_Y}" width="{segment_w}" height="{BAR_HEIGHT}" '
+            f'rx="7" fill="{color}"/>'
         )
 
-    # Legend
-    ly = 90
+        bar_segments.append((lang, color))
+        current_x += segment_w
+
+    # =========================
+    # BUBBLE STACK (Right side)
+    # =========================
+
+    bubble_r = 6
+    bubble_spacing = 12
+
+    # Align bubbles inside bar edge
+    bubble_start = bar_x + bar_w - (len(bar_segments) * bubble_spacing)
+
+    for i, (lang, color) in enumerate(bar_segments):
+        svg.append(
+            f'<circle cx="{bubble_start + i * bubble_spacing}" '
+            f'cy="{BAR_Y + BAR_HEIGHT/2}" r="{bubble_r}" fill="{color}" />'
+        )
+
+    # =========================
+    # LEGEND
+    # =========================
+
+    legend_start_y = BAR_Y + 45
+    name_x = CARD_PADDING + 28
+    percent_x = CARD_PADDING + 160
 
     for i, (lang, (b, pct)) in enumerate(percentages.items()):
-        dy = ly + i * 20  # tighter spacing
+        dy = legend_start_y + i * ROW_GAP
 
         color = GITHUB_COLORS.get(
-            lang, DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
+            lang,
+            DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
         )
 
-        svg.append(f'<circle cx="26" cy="{dy}" r="6" fill="{color}"/>')
+        # Dot
+        svg.append(f'<circle cx="{CARD_PADDING + 6}" cy="{dy - 3}" r="6" fill="{color}"/>')
 
-        svg.append(f'<text x="44" y="{dy+4}" fill="white" font-size="13" '
-                   f'font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(lang)}</text>')
+        # Language name
+        svg.append(
+            f'<text x="{name_x}" y="{dy}" fill="white" font-size="13" '
+            f'font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(lang)}</text>'
+        )
 
-        svg.append(f'<text x="130" y="{dy+4}" fill="{TEXT_MUTED}" font-size="12" '
-                   f'font-family="Segoe UI,Roboto,Helvetica,Arial">{pct:.2f}%</text>')
+        # Percentage
+        svg.append(
+            f'<text x="{percent_x}" y="{dy}" fill="{TEXT_MUTED}" font-size="12" '
+            f'font-family="Segoe UI,Roboto,Helvetica,Arial">{pct:.2f}%</text>'
+        )
 
     svg.append("</svg>")
     write(out_path, "\n".join(svg))
 
 
+
 ### CARD 2 — TOP 5 LANGUAGES
 def card_languages_top5(percentages, out_path, username):
+    # GitHub accurate colors
+    GITHUB_COLORS = {
+        "Jupyter Notebook": "#DA5B0B",
+        "HTML": "#E34C26",
+        "Python": "#3572A5",
+        "Other": "#6b7280",
+    }
+
+    # extract top 5 languages only
     top = list(percentages.items())[:5]
-    rows = len(top)
-    height = 160 + rows * 28
+
+    # layout constants (matching GitHub styling)
+    TITLE_Y = 32
+    ROW_GAP = 32
+    CARD_PADDING = 20
+    BAR_HEIGHT = 12
+
+    width = SVG_WIDTH
+    height = 110 + len(top) * ROW_GAP
+
+    # bar layout
+    label_x = CARD_PADDING + 30
+    bar_x = 160         # bar start shifted right for long names
+    bar_w = width - bar_x - 70  # leave room for % text
 
     svg = [f"""
-<svg width="{SVG_WIDTH}" height="{height}" xmlns="http://www.w3.org/2000/svg">
-<rect width="{SVG_WIDTH}" height="{height}" rx="12" fill="{CARD_BG}"/>
-<text x="20" y="32" fill="{TITLE_COLOR}" font-size="18" font-weight="700"
-      font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(username)}'s Top 5 Languages</text>
+<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">
+<rect width="{width}" height="{height}" rx="12" fill="{CARD_BG}"/>
+
+<!-- Title -->
+<text x="{CARD_PADDING}" y="{TITLE_Y}" fill="{TITLE_COLOR}" 
+      font-size="18" font-weight="700"
+      font-family="Segoe UI,Roboto,Helvetica,Arial">
+    Top 5 Languages
+</text>
 """]
 
-    bar_x = 130
-    bar_w = SVG_WIDTH - bar_x - 40
+    # =========================
+    # ROWS (Label + Dot + Bar)
+    # =========================
 
     for i, (lang, (b, pct)) in enumerate(top):
-        y = 60 + i * 34
+        y = 60 + i * ROW_GAP
 
-        svg.append(f'<text x="28" y="{y+10}" fill="#7ee6ff" font-size="13" '
-                   f'font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(lang)}</text>')
+        # GitHub color priority
+        color = GITHUB_COLORS.get(
+            lang,
+            DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
+        )
 
-        svg.append(f'<rect x="{bar_x}" y="{y}" width="{bar_w}" height="12" rx="7" fill="#0b1220"/>')
+        # Dot icon
+        svg.append(
+            f'<circle cx="{CARD_PADDING + 6}" cy="{y+4}" r="5" fill="{color}" />'
+        )
 
-        fill = max(2, (pct / 100) * bar_w)
-        color = DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
-        svg.append(f'<rect x="{bar_x}" y="{y}" width="{fill}" height="12" rx="7" fill="{color}"/>')
+        # Language name
+        svg.append(
+            f'<text x="{label_x}" y="{y+8}" fill="white" font-size="13" '
+            f'font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(lang)}</text>'
+        )
 
-        svg.append(f'<text x="{bar_x+bar_w+10}" y="{y+10}" fill="#bfe6ff" font-size="12" '
-                   f'font-family="Segoe UI,Roboto,Helvetica,Arial">{pct:.2f}%</text>')
+        # Background bar
+        svg.append(
+            f'<rect x="{bar_x}" y="{y}" width="{bar_w}" height="{BAR_HEIGHT}" '
+            f'rx="7" fill="#0b1220"/>'
+        )
+
+        # Progress fill
+        fill_w = max(2, (pct / 100) * bar_w)
+        svg.append(
+            f'<rect x="{bar_x}" y="{y}" width="{fill_w}" height="{BAR_HEIGHT}" '
+            f'rx="7" fill="{color}"/>'
+        )
+
+        # Percentage text
+        svg.append(
+            f'<text x="{bar_x + bar_w + 15}" y="{y+10}" fill="#bfe6ff" font-size="12" '
+            f'font-family="Segoe UI,Roboto,Helvetica,Arial">{pct:.2f}%</text>'
+        )
 
     svg.append("</svg>")
     write(out_path, "\n".join(svg))
