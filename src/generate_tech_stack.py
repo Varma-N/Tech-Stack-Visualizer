@@ -261,18 +261,20 @@ def card_languages_overall(percentages, out_path, username):
         "Jupyter Notebook": "#DA5B0B",
         "HTML": "#E34C26",
         "Python": "#3572A5",
-        "Other": "#6b7280",
+        "Other": "#6b7280"
     }
 
-    # Layout constants calibrated to match GitHub card styling
-    TITLE_Y = 32
-    BAR_Y = 58
-    BAR_HEIGHT = 14
     CARD_PADDING = 20
-    ROW_GAP = 22
+    TITLE_Y = 32
+    BAR_Y = 60
+    BAR_H = 14
 
-    # Dynamic card height
-    height = 130 + len(percentages) * ROW_GAP
+    num_langs = len(percentages)
+
+    # Height adjusts based on 1-column or 2-column layout
+    legend_rows = (num_langs + 1) // 2 if num_langs >= 4 else num_langs
+    height = 120 + legend_rows * 26
+
     width = SVG_WIDTH
 
     svg = [f"""
@@ -280,7 +282,7 @@ def card_languages_overall(percentages, out_path, username):
 <rect width="{width}" height="{height}" rx="12" fill="{CARD_BG}"/>
 
 <!-- Title -->
-<text x="{CARD_PADDING}" y="{TITLE_Y}" fill="{TITLE_COLOR}"
+<text x="{CARD_PADDING}" y="{TITLE_Y}" fill="{TITLE_COLOR}" 
       font-size="18" font-weight="700"
       font-family="Segoe UI,Roboto,Helvetica,Arial">
     Overall Language Breakdown
@@ -292,85 +294,116 @@ def card_languages_overall(percentages, out_path, username):
     # =========================
 
     bar_x = CARD_PADDING
-    bar_w = width - (CARD_PADDING * 3) - 40  # leaves room for bubbles stack
+    bar_w = width - CARD_PADDING*3 - 20
 
-    # background bar
+    # Bar background
     svg.append(
-        f'<rect x="{bar_x}" y="{BAR_Y}" width="{bar_w}" height="{BAR_HEIGHT}" '
+        f'<rect x="{bar_x}" y="{BAR_Y}" width="{bar_w}" height="{BAR_H}" '
         f'rx="7" fill="#0b1220"/>'
     )
 
-    # Create segmented bar
     current_x = bar_x
-    bar_segments = []
+    segments = []
 
-    for i, (lang, (b, pct)) in enumerate(percentages.items()):
-        segment_w = max(1, (pct / 100) * bar_w)
+    for i, (lang, (bytes_used, pct)) in enumerate(percentages.items()):
+        seg_w = max(1, (pct / 100) * bar_w)
 
         color = GITHUB_COLORS.get(
             lang,
             DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
         )
 
+        # Segment
         svg.append(
-            f'<rect x="{current_x}" y="{BAR_Y}" width="{segment_w}" height="{BAR_HEIGHT}" '
+            f'<rect x="{current_x}" y="{BAR_Y}" width="{seg_w}" height="{BAR_H}" '
             f'rx="7" fill="{color}"/>'
         )
 
-        bar_segments.append((lang, color))
-        current_x += segment_w
+        segments.append((lang, color))
+        current_x += seg_w
 
     # =========================
-    # BUBBLE STACK (Right side)
+    # DONUT-STYLE BUBBLE GROUP
     # =========================
 
-    bubble_r = 6
-    bubble_spacing = 12
+    bubble_r = 5
+    spacing = 16
 
-    # Align bubbles inside bar edge
-    bubble_start = bar_x + bar_w - (len(bar_segments) * bubble_spacing)
+    bubble_start = bar_x + bar_w - (len(segments) * spacing) + 4
 
-    for i, (lang, color) in enumerate(bar_segments):
+    for i, (lang, color) in enumerate(segments):
         svg.append(
-            f'<circle cx="{bubble_start + i * bubble_spacing}" '
-            f'cy="{BAR_Y + BAR_HEIGHT/2}" r="{bubble_r}" fill="{color}" />'
+            f'<circle cx="{bubble_start + i * spacing}" '
+            f'cy="{BAR_Y + BAR_H/2}" r="{bubble_r}" fill="{color}"/>'
         )
 
     # =========================
-    # LEGEND
+    # LEGEND — SINGLE OR TWO COLUMNS
     # =========================
 
-    legend_start_y = BAR_Y + 45
-    name_x = CARD_PADDING + 28
-    percent_x = CARD_PADDING + 160
+    legend_y = BAR_Y + 45
+    col_gap = 200
 
-    for i, (lang, (b, pct)) in enumerate(percentages.items()):
-        dy = legend_start_y + i * ROW_GAP
+    langs_list = list(percentages.items())
+
+    # Split into 2 columns ONLY if 4+ languages
+    if num_langs >= 4:
+        mid = (num_langs + 1) // 2
+        col1 = langs_list[:mid]
+        col2 = langs_list[mid:]
+    else:
+        col1 = langs_list
+        col2 = []
+
+    # Draw column 1
+    for i, (lang, (b, pct)) in enumerate(col1):
+        y = legend_y + i * 26
 
         color = GITHUB_COLORS.get(
             lang,
             DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
         )
 
-        # Dot
-        svg.append(f'<circle cx="{CARD_PADDING + 6}" cy="{dy - 3}" r="6" fill="{color}"/>')
+        svg.append(f'<circle cx="{CARD_PADDING + 6}" cy="{y-3}" r="6" fill="{color}"/>')
 
-        # Language name
         svg.append(
-            f'<text x="{name_x}" y="{dy}" fill="white" font-size="13" '
-            f'font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(lang)}</text>'
+            f'<text x="{CARD_PADDING + 26}" y="{y}" fill="white" '
+            f'font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">'
+            f'{esc(lang)}</text>'
         )
 
-        # Percentage
         svg.append(
-            f'<text x="{percent_x}" y="{dy}" fill="{TEXT_MUTED}" font-size="12" '
-            f'font-family="Segoe UI,Roboto,Helvetica,Arial">{pct:.2f}%</text>'
+            f'<text x="{CARD_PADDING + 140}" y="{y}" fill="{TEXT_MUTED}" '
+            f'font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">'
+            f'{pct:.2f}%</text>'
+        )
+
+    # Draw column 2
+    for i, (lang, (b, pct)) in enumerate(col2):
+        y = legend_y + i * 26
+
+        color = GITHUB_COLORS.get(
+            lang,
+            DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[(i+5) % len(DOT_COLORS)])
+        )
+
+        svg.append(f'<circle cx="{CARD_PADDING + col_gap}" cy="{y-3}" r="6" fill="{color}"/>')
+
+        svg.append(
+            f'<text x="{CARD_PADDING + col_gap + 20}" y="{y}" fill="white" '
+            f'font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">'
+            f'{esc(lang)}</text>'
+        )
+
+        svg.append(
+            f'<text x="{CARD_PADDING + col_gap + 140}" y="{y}" fill="{TEXT_MUTED}" '
+            f'font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">'
+            f'{pct:.2f}%</text>'
         )
 
     svg.append("</svg>")
     write(out_path, "\n".join(svg))
-
-
+    
 
 ### CARD 2 — TOP 5 LANGUAGES
 def card_languages_top5(percentages, out_path, username):
