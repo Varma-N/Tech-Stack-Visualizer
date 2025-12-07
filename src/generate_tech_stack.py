@@ -256,153 +256,125 @@ def total_commits(username, repos, token):
 
 ### CARD 1 — OVERALL LANGUAGES
 def card_languages_overall(percentages, out_path, username):
-    # GitHub accurate colors
+    # GitHub-like language colors
     GITHUB_COLORS = {
         "Jupyter Notebook": "#DA5B0B",
         "HTML": "#E34C26",
         "Python": "#3572A5",
-        "Other": "#6b7280"
+        "Other": "#6b7280",
     }
 
-    CARD_PADDING = 20
-    TITLE_Y = 32
-    BAR_Y = 60
-    BAR_H = 14
+    # ---------- CARD DIMENSIONS ----------
+    title_y = 32
+    bar_y = 52
+    bar_h = 14
+    side_padding = 20
+    inner_w = SVG_WIDTH - (side_padding * 2)
 
-    num_langs = len(percentages)
+    # ---------- SPLIT LEGEND INTO EVEN COLUMNS ----------
+    langs = list(percentages.items())
+    total_langs = len(langs)
 
-    # Height adjusts based on 1-column or 2-column layout
-    legend_rows = (num_langs + 1) // 2 if num_langs >= 4 else num_langs
-    height = 120 + legend_rows * 26
+    if total_langs >= 4:
+        mid = (total_langs + 1) // 2
+        left_col = langs[:mid]
+        right_col = langs[mid:]
+    else:
+        left_col = langs
+        right_col = []
 
-    width = SVG_WIDTH
+    rows = max(len(left_col), len(right_col))
+    row_spacing = 24
 
+    height = 110 + rows * row_spacing
+
+    # ------------------------------------
+    # START SVG
+    # ------------------------------------
     svg = [f"""
-<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">
-<rect width="{width}" height="{height}" rx="12" fill="{CARD_BG}"/>
+<svg width="{SVG_WIDTH}" height="{height}" xmlns="http://www.w3.org/2000/svg">
+<defs>{gradient("g1", ACCENT_START, ACCENT_END)}</defs>
 
-<!-- Title -->
-<text x="{CARD_PADDING}" y="{TITLE_Y}" fill="{TITLE_COLOR}" 
-      font-size="18" font-weight="700"
-      font-family="Segoe UI,Roboto,Helvetica,Arial">
+<rect width="{SVG_WIDTH}" height="{height}" rx="12" fill="{CARD_BG}"/>
+
+<text x="{side_padding}" y="{title_y}" fill="{TITLE_COLOR}" font-size="18"
+      font-weight="700" font-family="Segoe UI,Roboto,Helvetica,Arial">
     Overall Language Breakdown
 </text>
 """]
 
-    # =========================
-    # MAIN SEGMENTED BAR
-    # =========================
-
-    bar_x = CARD_PADDING
-    bar_w = width - CARD_PADDING*3 - 20
-
-    # Bar background
+    # ----------- MAIN SEGMENTED BAR -----------
     svg.append(
-        f'<rect x="{bar_x}" y="{BAR_Y}" width="{bar_w}" height="{BAR_H}" '
-        f'rx="7" fill="#0b1220"/>'
+        f'<rect x="{side_padding}" y="{bar_y}" width="{inner_w}" height="{bar_h}" '
+        f'rx="8" fill="#0b1220"/>'
     )
 
-    current_x = bar_x
-    segments = []
+    cur_x = side_padding
 
-    for i, (lang, (bytes_used, pct)) in enumerate(percentages.items()):
-        seg_w = max(1, (pct / 100) * bar_w)
+    segments = []  # store (lang, color)
 
-        color = GITHUB_COLORS.get(
-            lang,
-            DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
-        )
-
-        # Segment
-        svg.append(
-            f'<rect x="{current_x}" y="{BAR_Y}" width="{seg_w}" height="{BAR_H}" '
-            f'rx="7" fill="{color}"/>'
-        )
-
+    for i, (lang, (b, pct)) in enumerate(langs):
+        w = max(2, (pct / 100) * inner_w)
+        color = GITHUB_COLORS.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
         segments.append((lang, color))
-        current_x += seg_w
 
-    # =========================
-    # DONUT-STYLE BUBBLE GROUP
-    # =========================
+        svg.append(f'<rect x="{cur_x}" y="{bar_y}" width="{w}" height="{bar_h}" '
+                   f'rx="8" fill="{color}"/>')
+        cur_x += w
 
-    bubble_r = 5
-    spacing = 16
+    # ----------- BUBBLE STACK (GitHub-style) -----------
+    bubble_r = 4          # smaller → professional look
+    bubble_spacing = 22   # wider → no overlap
 
-    bubble_start = bar_x + bar_w - (len(segments) * spacing) + 4
+    total_bubbles_w = len(segments) * bubble_spacing
+    bubble_start = side_padding + inner_w - total_bubbles_w + bubble_r
 
-    for i, (lang, color) in enumerate(segments):
-        svg.append(
-            f'<circle cx="{bubble_start + i * spacing}" '
-            f'cy="{BAR_Y + BAR_H/2}" r="{bubble_r}" fill="{color}"/>'
-        )
+    for i, (_, color) in enumerate(segments):
+        cx = bubble_start + (i * bubble_spacing)
+        cy = bar_y + bar_h / 2
+        svg.append(f'<circle cx="{cx}" cy="{cy}" r="{bubble_r}" fill="{color}"/>')
 
-    # =========================
-    # LEGEND — SINGLE OR TWO COLUMNS
-    # =========================
+    # ----------- LEGEND (Even 2-column layout) -----------
+    legend_start_y = bar_y + 45
+    col_x1 = side_padding
+    col_x2 = SVG_WIDTH // 2 + 10
 
-    legend_y = BAR_Y + 45
-    col_gap = 200
+    for row in range(rows):
+        y = legend_start_y + row * row_spacing
 
-    langs_list = list(percentages.items())
+        # Left column
+        if row < len(left_col):
+            lang, (b, pct) = left_col[row]
+            color = GITHUB_COLORS.get(lang, "#ccc")
 
-    # Split into 2 columns ONLY if 4+ languages
-    if num_langs >= 4:
-        mid = (num_langs + 1) // 2
-        col1 = langs_list[:mid]
-        col2 = langs_list[mid:]
-    else:
-        col1 = langs_list
-        col2 = []
+            svg.append(f'<circle cx="{col_x1}" cy="{y}" r="6" fill="{color}"/>')
+            svg.append(
+                f'<text x="{col_x1+18}" y="{y+4}" fill="white" font-size="13" '
+                f'font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(lang)}</text>'
+            )
+            svg.append(
+                f'<text x="{col_x1+140}" y="{y+4}" fill="{TEXT_MUTED}" font-size="12" '
+                f'font-family="Segoe UI,Roboto,Helvetica,Arial">{pct:.2f}%</text>'
+            )
 
-    # Draw column 1
-    for i, (lang, (b, pct)) in enumerate(col1):
-        y = legend_y + i * 26
+        # Right column
+        if row < len(right_col):
+            lang, (b, pct) = right_col[row]
+            color = GITHUB_COLORS.get(lang, "#ccc")
 
-        color = GITHUB_COLORS.get(
-            lang,
-            DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[i % len(DOT_COLORS)])
-        )
-
-        svg.append(f'<circle cx="{CARD_PADDING + 6}" cy="{y-3}" r="6" fill="{color}"/>')
-
-        svg.append(
-            f'<text x="{CARD_PADDING + 26}" y="{y}" fill="white" '
-            f'font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">'
-            f'{esc(lang)}</text>'
-        )
-
-        svg.append(
-            f'<text x="{CARD_PADDING + 140}" y="{y}" fill="{TEXT_MUTED}" '
-            f'font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">'
-            f'{pct:.2f}%</text>'
-        )
-
-    # Draw column 2
-    for i, (lang, (b, pct)) in enumerate(col2):
-        y = legend_y + i * 26
-
-        color = GITHUB_COLORS.get(
-            lang,
-            DEFAULT_LANGUAGE_COLOR_MAP.get(lang, DOT_COLORS[(i+5) % len(DOT_COLORS)])
-        )
-
-        svg.append(f'<circle cx="{CARD_PADDING + col_gap}" cy="{y-3}" r="6" fill="{color}"/>')
-
-        svg.append(
-            f'<text x="{CARD_PADDING + col_gap + 20}" y="{y}" fill="white" '
-            f'font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">'
-            f'{esc(lang)}</text>'
-        )
-
-        svg.append(
-            f'<text x="{CARD_PADDING + col_gap + 140}" y="{y}" fill="{TEXT_MUTED}" '
-            f'font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">'
-            f'{pct:.2f}%</text>'
-        )
+            svg.append(f'<circle cx="{col_x2}" cy="{y}" r="6" fill="{color}"/>')
+            svg.append(
+                f'<text x="{col_x2+18}" y="{y+4}" fill="white" font-size="13" '
+                f'font-family="Segoe UI,Roboto,Helvetica,Arial">{esc(lang)}</text>'
+            )
+            svg.append(
+                f'<text x="{col_x2+140}" y="{y+4}" fill="{TEXT_MUTED}" font-size="12" '
+                f'font-family="Segoe UI,Roboto,Helvetica,Arial">{pct:.2f}%</text>'
+            )
 
     svg.append("</svg>")
     write(out_path, "\n".join(svg))
+
     
 
 ### CARD 2 — TOP 5 LANGUAGES
