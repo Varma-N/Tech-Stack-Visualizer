@@ -3,8 +3,7 @@
 Tech Stack Visualizer — Gradient/Neon Theme (Option 2)
 FINAL VERSION WITH FIXES FOR USERNAMES LIKE "Varma-N"
 
-Generates 3 SVG cards:
- - assets/card_languages_overall.svg
+Generates 2 SVG cards:
  - assets/card_languages_top5.svg
  - assets/card_github_stats.svg
 
@@ -339,7 +338,7 @@ def card_languages_top5(percentages, out_path, username):
     svg.append("</svg>")
     write(out_path, "\n".join(svg))
 
-### CARD 3 — GITHUB STATS
+### CARD 2 — GITHUB STATS
 def card_github_stats(stats, out_path, username):
     height = 210
 
@@ -454,7 +453,6 @@ def main():
     out = "assets"
     os.makedirs(out, exist_ok=True)
 
-    card_languages_overall(percentages, f"{out}/card_languages_overall.svg", username)
     card_languages_top5(percentages, f"{out}/card_languages_top5.svg", username)
     card_github_stats(stats, f"{out}/card_github_stats.svg", username)
 
