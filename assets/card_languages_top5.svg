@@ -12,8 +12,8 @@
 <circle cx="26" cy="64" r="5" fill="#DA5B0B" />
 <text x="50" y="68" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Jupyter Notebook</text>
 <rect x="160" y="60" width="270" height="12" rx="7" fill="#0b1220"/>
-<rect x="160" y="60" width="250.641" height="12" rx="7" fill="#DA5B0B"/>
-<text x="445" y="70" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">92.83%</text>
+<rect x="160" y="60" width="250.61399999999998" height="12" rx="7" fill="#DA5B0B"/>
+<text x="445" y="70" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">92.82%</text>
 <circle cx="26" cy="96" r="5" fill="#E34C26" />
 <text x="50" y="100" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">HTML</text>
 <rect x="160" y="92" width="270" height="12" rx="7" fill="#0b1220"/>
