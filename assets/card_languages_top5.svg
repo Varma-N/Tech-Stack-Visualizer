@@ -12,21 +12,21 @@
 <circle cx="26" cy="64" r="5" fill="#DA5B0B" />
 <text x="50" y="68" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Jupyter Notebook</text>
 <rect x="160" y="60" width="270" height="12" rx="7" fill="#0b1220"/>
-<rect x="160" y="60" width="237.087" height="12" rx="7" fill="#DA5B0B"/>
-<text x="445" y="70" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">87.81%</text>
+<rect x="160" y="60" width="236.817" height="12" rx="7" fill="#DA5B0B"/>
+<text x="445" y="70" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">87.71%</text>
 <circle cx="26" cy="96" r="5" fill="#3572A5" />
 <text x="50" y="100" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Python</text>
 <rect x="160" y="92" width="270" height="12" rx="7" fill="#0b1220"/>
-<rect x="160" y="92" width="20.169" height="12" rx="7" fill="#3572A5"/>
-<text x="445" y="102" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">7.47%</text>
+<rect x="160" y="92" width="20.439" height="12" rx="7" fill="#3572A5"/>
+<text x="445" y="102" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">7.57%</text>
 <circle cx="26" cy="128" r="5" fill="#E34C26" />
 <text x="50" y="132" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">HTML</text>
 <rect x="160" y="124" width="270" height="12" rx="7" fill="#0b1220"/>
-<rect x="160" y="124" width="9.180000000000001" height="12" rx="7" fill="#E34C26"/>
-<text x="445" y="134" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">3.40%</text>
+<rect x="160" y="124" width="9.153" height="12" rx="7" fill="#E34C26"/>
+<text x="445" y="134" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">3.39%</text>
 <circle cx="26" cy="160" r="5" fill="#6b7280" />
 <text x="50" y="164" fill="white" font-size="13" font-family="Segoe UI,Roboto,Helvetica,Arial">Other</text>
 <rect x="160" y="156" width="270" height="12" rx="7" fill="#0b1220"/>
-<rect x="160" y="156" width="3.591" height="12" rx="7" fill="#6b7280"/>
-<text x="445" y="166" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">1.33%</text>
+<rect x="160" y="156" width="3.564" height="12" rx="7" fill="#6b7280"/>
+<text x="445" y="166" fill="#bfe6ff" font-size="12" font-family="Segoe UI,Roboto,Helvetica,Arial">1.32%</text>
 </svg>
